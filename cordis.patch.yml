@@ -1,0 +1,5 @@
+# dsh-theme-synthwave bundle patch: inserts the plugin row into the web roster.
+# Install with: dsh plugin --profile web add link:<repo-root>
+- insert:
+    - id: theme-synthwave
+      name: 'dsh-theme-synthwave'

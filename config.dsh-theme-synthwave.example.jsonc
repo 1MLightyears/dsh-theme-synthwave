@@ -1,0 +1,58 @@
+{
+  // ============================================================
+  //  dsh-theme-synthwave 配置模板。
+  //  本文件是带逐项注释的参考模板。
+  //  插件会自动用内置默认值生成当前 profile 目录下的
+//  `config.dsh-theme-synthwave.jsonc`；你也可以手动创建并修改。
+  //  修改后硬刷新页面即可生效；安装/卸载插件才需要重启 DSH。
+  //  媒体路径只支持“裸文件名”或 http(s) URL；不支持本地绝对路径。
+  //
+  //  ── 裸文件名解析 ──
+  //  background.video.path 中的裸文件名 → <profile>/dsh-theme-synthwave/video/<文件名>
+  //  background.images.paths 中的裸文件名 → <profile>/dsh-theme-synthwave/images/<文件名>
+  //  （<profile> 为当前 profile 目录，通常为 $DSH_HOME/profiles/<profile>/）。
+  //  http(s) URL 直接使用、不复制。
+  // ============================================================
+
+  // ---------- 文字霓虹光（仅作用于可点击/功能控件，不影响正文）----------
+  "textGlow": {
+    "enabled": true,          // 霓虹发光总开关
+    "alpha": 0.6,             // 常驻微光强度 0~1
+    "hoverAlpha": 0.85,       // hover/focus 强度 0~1
+    "blurEm": 0.30,           // 光斑半径（em）
+    "colors": ["#ff2a6d"],    // 常驻发光色（可多色叠加）
+    "hoverColors": ["#05d9e8"], // hover/focus 切换色
+    "suppressHoverFill": true // hover/focus 时压制默认圆角矩形/边框
+  },
+
+  // ---------- 全局字号 ----------
+  // 根字号缩放：会缩放 rem/em 以及继承根字号的文本；显式 px 字号不缩放。
+  "fontScale": 1.15,
+
+  // ---------- 背景媒体（视频优先于图片）----------
+  "background": {
+    // 应用底色/侧边栏底色不透明度 0~1。越小越透明、背景越透出；必须 <1 才能看到背景。
+    "baseAlpha": 0.5,
+
+    // 背景媒体/默认气泡模糊半径，整数 0~40（单位 px）。0=清晰，越大越模糊。默认 2。
+    "blur": 2,
+
+    // 默认背景显示效果（当视频/图片都未解析时生效）：
+    // 0 = 静态（随机位置的气泡）；1 = 动态（气泡随机缓慢浮动）。默认 1。
+    "defaultEffect": 1,
+
+    "video": {
+      "path": "background.mp4", // 视频：裸文件名（→ dsh-theme-synthwave/video/）或 http(s) URL；留空=禁用
+      "loop": true,          // 循环播放
+      "muted": true,          // 背景视频自动播放必须静音；false 可能被浏览器阻止出声
+      "objectFit": "cover"    // cover | contain | fill
+    },
+
+    "images": {
+      "paths": ["background.jpg"], // 图片：裸文件名（→ dsh-theme-synthwave/images/）或 http(s) URL；可多张轮播
+      "alpha": 0.85,          // 图片自身不透明度 0~1
+      "intervalMs": 60000,    // 每张停留毫秒
+      "order": "sequential"   // sequential | random
+    }
+  }
+}
