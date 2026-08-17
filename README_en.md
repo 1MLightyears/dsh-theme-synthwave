@@ -33,14 +33,14 @@ One package ships both the host half (config reading, media file serving) and th
    dsh plugin --profile web add "git+https://github.com/<your-username>/dsh-theme-synthwave.git"
 
    # npm (after publishing)
-   dsh plugin --profile web add dsh-theme-synthwave
+   dsh plugin --profile web add @1MLightyears/dsh-theme-synthwave
    ```
 
    > **Git install note**: a `git+` install fetches the **source** (not built artifacts); DSH/pnpm runs this package's `prepare` script after install to build `lib/` from `src/`. pnpm ≥10 refuses to run a git dependency's `prepare` until you allow it: the first `add` fails and `dsh` prints the exact package key to copy into that profile's `pnpm-workspace.yaml`, e.g.:
    >
    > ```yaml
    > allowBuilds:
-   >   dsh-theme-synthwave: true
+   >   '@1MLightyears/dsh-theme-synthwave': true
    > ```
    >
    > Then re-run `add`. Lock the commit (`git+https://…#<sha>`) so later pushes cannot silently change what runs.

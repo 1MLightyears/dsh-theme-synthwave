@@ -1,5 +1,5 @@
 {
-  "name": "dsh-theme-synthwave",
+  "name": "@1MLightyears/dsh-theme-synthwave",
   "version": "0.1.0",
   "description": "DSH Synthwave theme plugin: neon glow hover/focus, translucent panels over image/video background, configurable blur, fontScale root font-size.",
   "type": "module",

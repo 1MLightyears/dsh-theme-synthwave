@@ -22,7 +22,7 @@ export function apply(ctx: any): void {
 
   // 氛围/发光 CSS 作为插件自有的 <style> 标签注入，卸载时移除。
   const ambientTag = document.createElement('style')
-  ambientTag.dataset.plugin = 'dsh-theme-synthwave'
+  ambientTag.dataset.plugin = '@1MLightyears/dsh-theme-synthwave'
   ambientTag.dataset.pluginCss = 'ambient'
   ambientTag.textContent = buildAmbientCss()
   document.head.appendChild(ambientTag)
@@ -46,7 +46,7 @@ export function apply(ctx: any): void {
 
         // 注入霓虹发光样式。
         const glowTag = document.createElement('style')
-        glowTag.dataset.plugin = 'dsh-theme-synthwave'
+        glowTag.dataset.plugin = '@1MLightyears/dsh-theme-synthwave'
         glowTag.dataset.pluginCss = 'glow'
         glowTag.textContent = buildGlowCss(cfg.textGlow)
         document.head.appendChild(glowTag)
@@ -55,7 +55,7 @@ export function apply(ctx: any): void {
         // 根字号缩放 rem/em 排版，不改变布局或 Firefox 下固定定位弹窗的几何形状。
         const fs2 = typeof cfg.fontScale === 'number' && cfg.fontScale > 0 ? cfg.fontScale : 1
         const fontScaleTag = document.createElement('style')
-        fontScaleTag.dataset.plugin = 'dsh-theme-synthwave'
+        fontScaleTag.dataset.plugin = '@1MLightyears/dsh-theme-synthwave'
         fontScaleTag.dataset.pluginCss = 'font-scale'
         fontScaleTag.textContent = 'html { font-size: ' + (Math.round(fs2 * 10000) / 100) + '%; }'
         document.head.appendChild(fontScaleTag)

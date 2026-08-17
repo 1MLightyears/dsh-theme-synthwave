@@ -33,14 +33,14 @@
    dsh plugin --profile web add "git+https://github.com/<你的用户名>/dsh-theme-synthwave.git"
 
    # npm（发布后）
-   dsh plugin --profile web add dsh-theme-synthwave
+   dsh plugin --profile web add @1MLightyears/dsh-theme-synthwave
    ```
 
    > **Git 安装说明**：`git+` 安装拉取的是**源码**（不是构建产物），DSH/pnpm 会在安装后运行本包的 `prepare` 脚本，从 `src/` 构建出 `lib/`。pnpm ≥10 出于安全默认拒绝运行 git 依赖的 `prepare`：第一次 `add` 会失败，`dsh` 会提示把 pnpm 打印的**确切包键**复制进该 profile 的 `pnpm-workspace.yaml`，例如：
    >
    > ```yaml
    > allowBuilds:
-   >   dsh-theme-synthwave: true
+   >   '@1MLightyears/dsh-theme-synthwave': true
    > ```
    >
    > 然后重新执行 `add` 即可。建议锁定 commit（`git+https://…git#<sha>`），确保后续推送不会悄悄改变实际运行的代码。

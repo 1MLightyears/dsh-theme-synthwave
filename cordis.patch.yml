@@ -2,4 +2,4 @@
 # Install with: dsh plugin --profile web add link:<repo-root>
 - insert:
     - id: theme-synthwave
-      name: 'dsh-theme-synthwave'
+      name: '@1MLightyears/dsh-theme-synthwave'
