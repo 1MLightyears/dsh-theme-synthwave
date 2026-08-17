@@ -6,6 +6,8 @@
 
 单包同时包含 host 端（配置读取、媒体文件服务）与 client 端（主题 token、霓虹发光、背景媒体、字号缩放），安装即用。背景支持本地图片轮播或视频，面板可半透明透出媒体，并带有可配置的霓虹 glow、模糊与全局字号缩放。
 
+![showcase](showcase.png)
+
 ## ✨ 功能
 
 - **霓虹发光 hover/focus**：对链接、按钮、`role="button"` 等可点击控件添加多层 text-shadow 发光，hover/focus 时切换颜色。
@@ -16,6 +18,8 @@
 - **根字号缩放 `fontScale`**：通过根字号缩放文本，避免 Firefox 下 CSS `zoom` 导致的命中区域和弹窗定位异常。
 - **深浅色自适应 token**：深色模式保持合成波霓虹观感；浅色模式自动切换为浅底深字，避免白字看不清。
 - **配置卡片快捷入口**：在「插件配置」页提供「打开配置文件」「复制路径」按钮，快速打开或复制当前 profile 的 `config.dsh-theme-synthwave.jsonc`。
+- **媒体记录可移除**：在配置卡片中可移除已设置的视频，并逐张移除图片列表中的任意图片，改动即时写回本地配置。
+- **编辑安全**：配置文件编辑器支持「取消」撤销未保存修改；配置文件解析出错时自动兜底为默认配置（不改动原文件），并在界面给出提示。
 
 ## 🚀 快速开始
 
@@ -32,32 +36,40 @@
    dsh plugin --profile web add dsh-theme-synthwave
    ```
 
+   > **Git 安装说明**：`git+` 安装拉取的是**源码**（不是构建产物），DSH/pnpm 会在安装后运行本包的 `prepare` 脚本，从 `src/` 构建出 `lib/`。pnpm ≥10 出于安全默认拒绝运行 git 依赖的 `prepare`：第一次 `add` 会失败，`dsh` 会提示把 pnpm 打印的**确切包键**复制进该 profile 的 `pnpm-workspace.yaml`，例如：
+   >
+   > ```yaml
+   > allowBuilds:
+   >   dsh-theme-synthwave: true
+   > ```
+   >
+   > 然后重新执行 `add` 即可。建议锁定 commit（`git+https://…git#<sha>`），确保后续推送不会悄悄改变实际运行的代码。
+   >
+
    如果你的仓库是 monorepo 且插件在子目录中：
 
    ```bash
    dsh plugin --profile web add "git+https://github.com/<你的用户名>/<repo>.git#subdirectory=path/to/dsh-theme-synthwave"
    ```
-
 2. **创建/编辑配置**
 
    首次打开页面时，插件会自动在当前 profile 目录生成 `config.dsh-theme-synthwave.jsonc`（使用内置默认值）。你也可以参考 [`config.dsh-theme-synthwave.example.jsonc`](./config.dsh-theme-synthwave.example.jsonc) 手动创建。配置文件位于当前 profile 目录，而不是会话工作区。
-
 3. **准备背景素材**
 
-   把图片或视频放到 `config.dsh-theme-synthwave.jsonc` 所在目录（也可使用绝对路径或 `http(s)` URL）。
-
-   > **当前目录**：在 `background.video.path` / `background.images.paths` 中填 `.`（或相对路径）所访问的基准目录，就是 `config.dsh-theme-synthwave.jsonc` 所在目录——即当前 profile 目录（通常为 `$DSH_HOME/profiles/<profile>/`）。它**不是**会话工作区，也**不是**本插件包目录。
-
+   准备好图片/视频素材后，在配置界面上传（参见下方**配置**段落）。
 4. **重启并刷新**
 
    首次安装后重启 DSH，浏览器打开页面后硬刷新即可看到效果。之后修改 `config.dsh-theme-synthwave.jsonc` 只需硬刷新页面。
 
 ## ⚙️ 配置
 
-
 也可以在 DSH 设置 → 插件配置 → 「DeepSeek Harness: 合成波风格主题」卡片中，直接打开或复制当前 profile 的配置文件路径。
 
+![settings](settings.png)
+
 插件会在当前 profile 目录（通常为 `$DSH_HOME/profiles/<profile>/`）查找 `config.dsh-theme-synthwave.jsonc`；不存在时自动用内置默认值创建一份。[`config.dsh-theme-synthwave.example.jsonc`](./config.dsh-theme-synthwave.example.jsonc) 是带逐项注释的参考模板，可直接照注释修改。
+
+在「DeepSeek Harness: 合成波风格主题」卡片中可直接完成常用操作：选择/上传图片或视频、从「当前背景媒体」列表移除视频或单张图片、通过 URL / 裸文件名快速应用媒体源、以及编辑配置文件原文（「保存」写入，「取消」撤销未保存修改）。若配置文件解析失败，插件会临时套用默认配置且**不改动原文件**，并在界面提示你删除该文件让其自动重建默认配置，或参考示例文件修复。
 
 一个不带注释的精简示例：
 
@@ -93,17 +105,16 @@
 }
 ```
 
-媒体路径支持相对 `config.dsh-theme-synthwave.jsonc` 所在目录、绝对路径，或 `http(s)` URL。相对路径的 `.` = 当前 profile 目录（也就是配置文件所在目录）。文件读取上限 512MB，响应为 `Content-Type` 自动识别 + `Cache-Control: no-store`。
-
 修改 `config.dsh-theme-synthwave.jsonc` 后，浏览器硬刷新页面即可重新拉取配置；安装/卸载插件本身才需要重启 DSH。
 
 ## 🔌 服务端点
 
-| 路径 | 说明 |
-| --- | --- |
-| `GET /synthwave-theme-config` | 返回解析后的 JSON 配置（含 `configPath`），供浏览器端应用。 |
-| `POST /synthwave-theme-config/open` | 使用系统默认方式打开当前 profile 的配置文件。 |
-| `GET /synthwave-theme-media/<文件名>` | 读取并返回背景图片/视频字节（上限 512MB）。 |
+| 路径                                    | 说明                                                         |
+| --------------------------------------- | ------------------------------------------------------------ |
+| `GET /synthwave-theme-config`         | 返回解析后的 JSON 配置（含`configPath`），供浏览器端应用。 |
+| `POST /synthwave-theme-config/open`   | 使用系统默认方式打开当前 profile 的配置文件。                |
+| `POST /synthwave-theme-config/remove` | 移除视频记录，或从图片列表中移除指定图片，并写回配置。       |
+| `GET /synthwave-theme-media/<文件名>` | 读取并返回背景图片/视频字节（上限 512MB）。                  |
 
 ## ❓ 常见问题
 
@@ -115,7 +126,8 @@
 ```
 .
 ├── src/
-│   ├── index.ts              # host 端：读取配置、服务媒体与配置端点
+│   ├── host/
+│   │   └── index.ts          # host 端：读取配置、服务媒体与配置端点
 │   └── client/
 │       ├── index.ts          # client 端：token / glow / 背景 / 模糊 / 字号缩放
 │       └── OpenConfigCard.ts # 插件配置卡片：打开/复制配置文件
@@ -132,8 +144,8 @@
 ## 🛠️ 开发
 
 ```bash
-pnpm install
-pnpm build    # tsdown → lib/index.js + lib/client.js
+pnpm install   # 同时会触发 prepare 脚本自动构建 lib/
+pnpm build     # tsdown → lib/index.js + lib/client.js
 ```
 
 构建产物输出到 `lib/`，发布前无需手动修改 `lib/` 内容。注意：host 端代码在 DSH 进程启动时加载，修改后需要重启 `dsh --profile web` 进程；仅刷新浏览器只会重载 client 端。

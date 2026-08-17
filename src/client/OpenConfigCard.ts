@@ -1,4 +1,4 @@
-// 合成波主题的配置卡片：在设置页提供选择/上传背景媒体、编辑配置文件、打开配置（或示例）等交互。
+// 合成波主题的配置卡片：在设置页提供选择/上传背景媒体、移除媒体记录、编辑配置文件（含保存/取消）等交互。
 
 import { createElement, useEffect, useRef, useState } from 'react'
 import { IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -23,21 +23,27 @@ function jsonPost(url: string, body: unknown): Promise<any> {
   }).then((res) => res.json())
 }
 
-/** 设置页配置卡片：挑选/上传背景媒体、编辑配置文件、打开当前配置或示例。 */
+/** 设置页配置卡片：挑选/上传背景媒体、移除媒体记录、编辑配置文件、打开当前配置或示例。 */
 export function OpenConfigCard() {
   const [expanded, setExpanded] = useState(false)
   const [path, setPath] = useState('')
   const [hint, setHint] = useState('')
 
-  // 内联 JSONC 编辑器状态（脏检查 + 保存）。
+  // 内联 JSONC 编辑器状态（脏检查 + 保存 + 取消）。
   const [raw, setRaw] = useState('')
   const [savedRaw, setSavedRaw] = useState('')
   const [saving, setSaving] = useState(false)
+  const [parseError, setParseError] = useState(false)
   const dirty = raw !== savedRaw
 
   // URL / 本地路径来源输入。
   const [sourceKind, setSourceKind] = useState<Kind>('video')
   const [sourceValue, setSourceValue] = useState('')
+
+  // 当前媒体记录（原始引用），用于展示与移除。
+  const [videoPath, setVideoPath] = useState('')
+  const [imagePaths, setImagePaths] = useState<string[]>([])
+  const [removing, setRemoving] = useState(false)
 
   // 上传进度。
   const [uploading, setUploading] = useState(false)
@@ -46,14 +52,24 @@ export function OpenConfigCard() {
   const imageInput = useRef<HTMLInputElement | null>(null)
   const videoInput = useRef<HTMLInputElement | null>(null)
 
-  /** 拉取配置原文与路径，回填到编辑器。 */
+  /** 拉取配置原文（含解析状态）与当前媒体记录，回填到编辑器与媒体列表。 */
   const refresh = () => {
-    log('刷新配置原文')
+    log('刷新配置原文与媒体记录')
     fetch('/synthwave-theme-config/raw')
       .then((res) => res.json())
       .then((data) => {
         if (data && typeof data.path === 'string') setPath(data.path)
         if (data && typeof data.raw === 'string') { setRaw(data.raw); setSavedRaw(data.raw) }
+        if (data && typeof data.parseError === 'boolean') setParseError(data.parseError)
+      })
+      .catch(() => {})
+    fetch('/synthwave-theme-config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.sources) {
+          setVideoPath(typeof data.sources.video === 'string' ? data.sources.video : '')
+          setImagePaths(Array.isArray(data.sources.images) ? data.sources.images.filter((p: any) => typeof p === 'string') : [])
+        }
       })
       .catch(() => {})
   }
@@ -99,11 +115,19 @@ export function OpenConfigCard() {
     setHint('正在保存…')
     jsonPost('/synthwave-theme-config/save', { raw })
       .then((result) => {
-        if (result && result.ok) { setSavedRaw(raw); setHint('已保存，硬刷新页面生效') }
+        if (result && result.ok) { setSavedRaw(raw); setHint('已保存，硬刷新页面生效'); refresh() }
         else setHint('保存失败：' + String((result && result.error) || '未知错误'))
       })
       .catch(() => setHint('保存失败'))
       .finally(() => setSaving(false))
+  }
+
+  /** 取消未保存的文本修改：把编辑器还原到上次保存/加载的状态。 */
+  const cancel = () => {
+    if (!dirty) return
+    log('取消未保存的修改')
+    setRaw(savedRaw)
+    setHint('已取消未保存的修改')
   }
 
   /** 把输入的 URL / 裸文件名应用到对应媒体源（video 或 image）。 */
@@ -120,7 +144,37 @@ export function OpenConfigCard() {
       .catch(() => setHint('应用失败'))
   }
 
-  /** 通过 XHR 上传媒体文件（带进度），成功后刷新配置原文。 */
+  /** 移除视频记录（清空 video.path），成功后刷新配置与媒体列表。 */
+  const removeVideo = () => {
+    if (removing) return
+    log('移除视频记录')
+    setRemoving(true)
+    setHint('正在移除视频…')
+    jsonPost('/synthwave-theme-config/remove', { kind: 'video', value: '' })
+      .then((result) => {
+        if (result && result.ok) { setHint('已移除视频，硬刷新页面生效'); refresh() }
+        else setHint('移除失败：' + String((result && result.error) || '未知错误'))
+      })
+      .catch(() => setHint('移除失败'))
+      .finally(() => setRemoving(false))
+  }
+
+  /** 移除指定图片记录，成功后刷新配置与媒体列表。 */
+  const removeImage = (value: string) => {
+    if (removing) return
+    log('移除图片：' + value)
+    setRemoving(true)
+    setHint('正在移除图片…')
+    jsonPost('/synthwave-theme-config/remove', { kind: 'image', value })
+      .then((result) => {
+        if (result && result.ok) { setHint('已移除图片，硬刷新页面生效'); refresh() }
+        else setHint('移除失败：' + String((result && result.error) || '未知错误'))
+      })
+      .catch(() => setHint('移除失败'))
+      .finally(() => setRemoving(false))
+  }
+
+  /** 通过 XHR 上传媒体文件（带进度），成功后刷新配置与媒体列表。 */
   const upload = (kind: Kind, file: File) => {
     if (uploading) return
     log('上传媒体：' + kind + ' -> ' + file.name)
@@ -171,6 +225,29 @@ export function OpenConfigCard() {
             createElement('button', { className: css.button, onClick: openExample }, '打开示例配置'),
             createElement('button', { className: css.button, onClick: copy }, '复制路径'),
           ),
+          parseError
+            ? createElement('div', { className: css.warning },
+                '⚠ 配置文件解析失败：当前已临时套用默认配置（未修改原文件）。建议删除该配置文件让插件自动重建默认配置，或参考 config.dsh-theme-synthwave.example.jsonc 修复。')
+            : null,
+          createElement('div', { className: css.sectionTitle }, '当前背景媒体'),
+          videoPath === '' && imagePaths.length === 0
+            ? createElement('div', { className: css.mediaEmpty }, '未设置背景媒体')
+            : createElement('div', { className: css.mediaList },
+                videoPath === ''
+                  ? null
+                  : createElement('div', { className: css.mediaRow, key: 'video' },
+                      createElement('span', { className: css.mediaKind }, '视频'),
+                      createElement('span', { className: css.mediaName }, videoPath),
+                      createElement('button', { className: css.buttonDanger, onClick: removeVideo, disabled: removing }, '移除'),
+                    ),
+                ...imagePaths.map((p, i) =>
+                  createElement('div', { className: css.mediaRow, key: 'img-' + i },
+                    createElement('span', { className: css.mediaKind }, '图片'),
+                    createElement('span', { className: css.mediaName }, p),
+                    createElement('button', { className: css.buttonDanger, onClick: () => removeImage(p), disabled: removing }, '移除'),
+                  ),
+                ),
+              ),
           createElement('div', { className: css.sectionTitle }, '选择背景媒体'),
           createElement('div', { className: css.actions },
             createElement('button', { className: css.button, onClick: () => imageInput.current && imageInput.current.click(), disabled: uploading }, '选择图片'),
@@ -201,6 +278,7 @@ export function OpenConfigCard() {
           createElement('textarea', { className: css.textarea, value: raw, spellCheck: false, onChange: (e: any) => setRaw(e.target.value) }),
           createElement('div', { className: css.actions },
             createElement('button', { className: css.button, onClick: save, disabled: !dirty || saving }, saving ? '保存中…' : '保存'),
+            createElement('button', { className: css.button, onClick: cancel, disabled: !dirty || saving }, '取消'),
           ),
           hint === '' ? null : createElement('div', { className: css.hint }, hint),
         )

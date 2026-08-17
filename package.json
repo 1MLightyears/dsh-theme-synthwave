@@ -20,6 +20,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "prepare": "tsdown",
     "prepublishOnly": "npm run build"
   },
   "files": [

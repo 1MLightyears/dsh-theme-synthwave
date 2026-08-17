@@ -163,3 +163,79 @@ export function applyConfigEdit(raw: string, kind: 'video' | 'image', value: str
   }
   return JSON.stringify(obj, null, 2) + '\n'
 }
+
+/** 在 blockKey 对象内把数组属性整体重写为 values，保留块外注释；找不到时返回 null。 */
+function setArrayProp(raw: string, blockKey: string, propKey: string, values: string[]): string | null {
+  const block = findBlockSpan(raw, blockKey)
+  if (block === null) return null
+  const prop = findPropValue(raw.slice(block.start, block.end), propKey)
+  if (prop === null || prop.kind !== 'array') return null
+  const start = block.start + prop.start
+  const end = block.start + prop.end
+  const arrText = '[' + values.map((v) => JSON.stringify(v)).join(', ') + ']'
+  return raw.slice(0, start) + arrText + raw.slice(end)
+}
+
+/** 从 images.paths 中移除指定值并重写该数组（保留其他注释）；找不到或解析失败返回 null。 */
+function removeImageProp(raw: string, value: string): string | null {
+  const block = findBlockSpan(raw, 'images')
+  if (block === null) return null
+  const prop = findPropValue(raw.slice(block.start, block.end), 'paths')
+  if (prop === null || prop.kind !== 'array') return null
+  let paths: any
+  try { paths = parseJsonc(prop.raw) } catch { return null }
+  if (!Array.isArray(paths)) return null
+  const next = paths.filter((p) => p !== value)
+  return setArrayProp(raw, 'images', 'paths', next)
+}
+
+/** 移除配置：清除 video.path 或从 images.paths 移除指定值；优先原地编辑，失败退回解析重写。 */
+export function applyConfigRemove(raw: string, kind: 'video' | 'image', value: string): string {
+  if (kind === 'video') {
+    const edited = setStringProp(raw, 'video', 'path', '')
+    if (edited !== null) return edited
+  } else {
+    const edited = removeImageProp(raw, value)
+    if (edited !== null) return edited
+  }
+  // 退回解析重写：注释会丢失，但值会被保留。
+  const obj = parseJsonc(raw)
+  const bg = obj.background || (obj.background = {})
+  if (kind === 'video') {
+    const video = bg.video || (bg.video = {})
+    video.path = ''
+  } else {
+    const images = bg.images || (bg.images = {})
+    const paths = Array.isArray(images.paths) ? images.paths.filter((p) => p !== value) : []
+    images.paths = paths
+  }
+  return JSON.stringify(obj, null, 2) + '\n'
+}
+
+/** 从容错地提取媒体引用：即使配置文件整体解析失败，也尽量读回 video.path 与 images.paths。 */
+export function extractSources(raw: string): { video: string; images: string[] } {
+  const out: { video: string; images: string[] } = { video: '', images: [] }
+  // 提取 video.path（字符串值）。
+  const videoBlock = findBlockSpan(raw, 'video')
+  if (videoBlock !== null) {
+    const prop = findPropValue(raw.slice(videoBlock.start, videoBlock.end), 'path')
+    if (prop !== null && prop.kind === 'string') {
+      try {
+        const v = JSON.parse(stripJsoncComments(prop.raw))
+        if (typeof v === 'string') out.video = v
+      } catch { /* 该值不是合法 JSON 字符串，忽略 */ }
+    }
+  }
+  // 提取 images.paths（数组值）。
+  const imagesBlock = findBlockSpan(raw, 'images')
+  if (imagesBlock !== null) {
+    const prop = findPropValue(raw.slice(imagesBlock.start, imagesBlock.end), 'paths')
+    if (prop !== null && prop.kind === 'array') {
+      try {
+        const arr = JSON.parse(stripJsoncComments(prop.raw))
+        if (Array.isArray(arr)) out.images = arr.filter((p): p is string => typeof p === 'string')
+      } catch { /* 该值不是合法 JSON 数组，忽略 */ }
+    }
+  }
+  return out
+}

@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
-import { parseJsonc, applyConfigEdit } from './jsonc.ts'
+import { parseJsonc, applyConfigEdit, applyConfigRemove, extractSources } from './jsonc.ts'
 import {
   basename,
   collectReferencedBareNames,
@@ -72,13 +72,15 @@ export function apply(ctx: any): void {
       return configPath
     }
 
-    /** 读取并合并配置：以 DEFAULTS 为基底，逐层覆盖用户配置。 */
-    async function readConfig(): Promise<any> {
+    /** 读取并合并配置：以 DEFAULTS 为基底，逐层覆盖用户配置；同时返回原文供容错提取媒体引用。 */
+    async function readConfig(): Promise<{ cfg: any; raw: string | null }> {
       let cfg = DEFAULTS
+      let raw: string | null = null
       try {
         const file = await ensureConfigFile()
         if (file !== null) {
-          const parsed = parseJsonc(await readFile(file, 'utf8'))
+          raw = await readFile(file, 'utf8')
+          const parsed = parseJsonc(raw)
           cfg = {
             ...DEFAULTS, ...parsed,
             textGlow: { ...DEFAULTS.textGlow, ...(parsed.textGlow || {}) },
@@ -92,7 +94,7 @@ export function apply(ctx: any): void {
       } catch (e) {
         console.error('dsh-theme-synthwave: config read failed:', (e as Error)?.message)
       }
-      return cfg
+      return { cfg, raw }
     }
 
     /** 解析单个媒体引用：URL 原样返回，裸文件名解析到对应媒体目录。 */
@@ -144,8 +146,10 @@ export function apply(ctx: any): void {
 
     /** 组装浏览器端 /synthwave-theme-config 返回的完整配置。 */
     async function buildMediaConfig(): Promise<any> {
-      const cfg = await readConfig()
+      const { cfg, raw } = await readConfig()
       const { video, images } = await registerMedia(cfg)
+      // 原始媒体引用：从容错提取，即使配置整体解析失败也能展示/移除媒体记录。
+      const sources = raw !== null ? extractSources(raw) : { video: '', images: [] as string[] }
       return {
         configPath,
         textGlow: cfg.textGlow,
@@ -162,6 +166,7 @@ export function apply(ctx: any): void {
           defaultEffect: typeof cfg.background.defaultEffect === 'number' ? cfg.background.defaultEffect : 1,
         },
         fontScale: typeof cfg.fontScale === 'number' ? cfg.fontScale : 1.06,
+        sources,
       }
     }
 
@@ -236,7 +241,7 @@ export function apply(ctx: any): void {
         } catch (e) {
           try {
             res.writeHead(200, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ configPath, textGlow: DEFAULTS.textGlow, background: { video: null, images: [], imagesAlpha: 0.85, slideshow: { intervalMs: 8000, order: 'sequential' }, baseAlpha: 0.5, blur: 2 }, fontScale: 1.06 }))
+            res.end(JSON.stringify({ configPath, textGlow: DEFAULTS.textGlow, background: { video: null, images: [], imagesAlpha: 0.85, slideshow: { intervalMs: 8000, order: 'sequential' }, baseAlpha: 0.5, blur: 2 }, fontScale: 1.06, sources: { video: '', images: [] } }))
           } catch (e2) { /* ignore */ }
         }
       },
@@ -281,8 +286,11 @@ export function apply(ctx: any): void {
             return
           }
           const raw = await readFile(file, 'utf8')
+          // 解析失败时仍返回原文，便于用户在编辑器里修复；parseError 供前端展示兜底提示。
+          let parseError = false
+          try { parseJsonc(raw) } catch { parseError = true }
           res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-          res.end(JSON.stringify({ ok: true, path: file, raw }))
+          res.end(JSON.stringify({ ok: true, path: file, raw, parseError }))
         } catch (e) {
           try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: String((e as Error)?.message || e) })) } catch (e2) { /* ignore */ }
         }
@@ -364,6 +372,40 @@ export function apply(ctx: any): void {
       },
     })
     c.effect(() => unregisterSetSource)
+
+    // 移除视频/图片记录。
+    const unregisterRemove = webServer.register({
+      kind: 'prefix',
+      path: '/synthwave-theme-config/remove',
+      handler: async (req: any, res: any) => {
+        log('交互：移除媒体记录')
+        try {
+          const body = await readJsonBody(req)
+          const kind = body && (body.kind === 'video' || body.kind === 'image') ? body.kind : null
+          const value = body && typeof body.value === 'string' ? body.value : ''
+          if (kind === null || (kind === 'image' && value === '')) {
+            res.writeHead(400, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: false, error: '参数无效：需要 kind（video|image）；image 还需要非空 value' }))
+            return
+          }
+          const file = await ensureConfigFile()
+          if (file === null) {
+            res.writeHead(500, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: false, error: 'profile config path unavailable' }))
+            return
+          }
+          const raw = await readFile(file, 'utf8')
+          const next = applyConfigRemove(raw, kind, value)
+          await writeFile(file, next, 'utf8')
+          await reconcileMedia(raw, next)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ ok: true, path: file }))
+        } catch (e) {
+          try { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ok: false, error: String((e as Error)?.message || e) })) } catch (e2) { /* ignore */ }
+        }
+      },
+    })
+    c.effect(() => unregisterRemove)
 
     const unregisterOpenExample = webServer.register({
       kind: 'prefix',
