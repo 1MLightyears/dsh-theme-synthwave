@@ -1,9 +1,20 @@
+// 合成波主题的配置卡片：在设置页提供选择/上传背景媒体、编辑配置文件、打开配置（或示例）等交互。
+
 import { createElement, useEffect, useRef, useState } from 'react'
 import { IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './OpenConfigCard.module.css'
 
 type Kind = 'video' | 'image'
 
+/** 日志前缀，便于在 DevTools 控制台 grep 本卡片的排错日志。 */
+const LOG_PREFIX = '[dsh-theme-synthwave]'
+
+/** 输出一条浏览器端排错日志（交互逻辑前调用）。 */
+function log(message: string): void {
+  console.log(LOG_PREFIX + ' ' + message)
+}
+
+/** 发送一个 JSON POST 请求并解析 JSON 响应。 */
 function jsonPost(url: string, body: unknown): Promise<any> {
   return fetch(url, {
     method: 'POST',
@@ -12,30 +23,32 @@ function jsonPost(url: string, body: unknown): Promise<any> {
   }).then((res) => res.json())
 }
 
-/** Settings card: pick/upload background media, edit the config file, open it (or the example). */
+/** 设置页配置卡片：挑选/上传背景媒体、编辑配置文件、打开当前配置或示例。 */
 export function OpenConfigCard() {
   const [expanded, setExpanded] = useState(false)
   const [path, setPath] = useState('')
   const [hint, setHint] = useState('')
 
-  // Inline JSONC editor (dirty tracking + save).
+  // 内联 JSONC 编辑器状态（脏检查 + 保存）。
   const [raw, setRaw] = useState('')
   const [savedRaw, setSavedRaw] = useState('')
   const [saving, setSaving] = useState(false)
   const dirty = raw !== savedRaw
 
-  // URL / local-absolute-path source input.
+  // URL / 本地路径来源输入。
   const [sourceKind, setSourceKind] = useState<Kind>('video')
   const [sourceValue, setSourceValue] = useState('')
 
-  // Upload progress.
+  // 上传进度。
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
 
   const imageInput = useRef<HTMLInputElement | null>(null)
   const videoInput = useRef<HTMLInputElement | null>(null)
 
+  /** 拉取配置原文与路径，回填到编辑器。 */
   const refresh = () => {
+    log('刷新配置原文')
     fetch('/synthwave-theme-config/raw')
       .then((res) => res.json())
       .then((data) => {
@@ -45,17 +58,22 @@ export function OpenConfigCard() {
       .catch(() => {})
   }
 
+  // 卡片挂载时先拉取一次配置。
   useEffect(() => {
     refresh()
   }, [])
 
+  /** 复制配置路径到剪贴板；不可用时退化为直接展示路径。 */
   const copy = () => {
+    log('复制配置路径')
     const clipboard = (navigator as any).clipboard
     if (clipboard === undefined) { setHint(path); return }
     clipboard.writeText(path).then(() => setHint('路径已复制'), () => setHint('复制失败'))
   }
 
+  /** 请求宿主端打开当前 profile 配置文件。 */
   const openConfig = () => {
+    log('打开配置文件')
     setHint('正在打开…')
     fetch('/synthwave-theme-config/open', { method: 'POST' })
       .then((res) => res.json())
@@ -63,7 +81,9 @@ export function OpenConfigCard() {
       .catch(() => setHint('打开失败'))
   }
 
+  /** 请求宿主端打开随包发布的示例配置。 */
   const openExample = () => {
+    log('打开示例配置')
     setHint('正在打开示例…')
     fetch('/synthwave-theme-config/open-example', { method: 'POST' })
       .then((res) => res.json())
@@ -71,8 +91,10 @@ export function OpenConfigCard() {
       .catch(() => setHint('打开失败'))
   }
 
+  /** 保存编辑器里的配置原文到宿主端。 */
   const save = () => {
     if (saving || !dirty) return
+    log('保存配置')
     setSaving(true)
     setHint('正在保存…')
     jsonPost('/synthwave-theme-config/save', { raw })
@@ -84,9 +106,11 @@ export function OpenConfigCard() {
       .finally(() => setSaving(false))
   }
 
+  /** 把输入的 URL / 裸文件名应用到对应媒体源（video 或 image）。 */
   const applySource = () => {
     const value = sourceValue.trim()
     if (!value) { setHint('请输入 URL 或本地路径'); return }
+    log('应用媒体源：' + sourceKind + ' -> ' + value)
     setHint('正在应用…')
     jsonPost('/synthwave-theme-config/set', { kind: sourceKind, value })
       .then((result) => {
@@ -96,8 +120,10 @@ export function OpenConfigCard() {
       .catch(() => setHint('应用失败'))
   }
 
+  /** 通过 XHR 上传媒体文件（带进度），成功后刷新配置原文。 */
   const upload = (kind: Kind, file: File) => {
     if (uploading) return
+    log('上传媒体：' + kind + ' -> ' + file.name)
     setUploading(true)
     setProgress(0)
     setHint('')
@@ -107,7 +133,7 @@ export function OpenConfigCard() {
     xhr.onload = () => {
       setUploading(false)
       let result: any = null
-      try { result = JSON.parse(xhr.responseText) } catch { /* ignore */ }
+      try { result = JSON.parse(xhr.responseText) } catch { /* 响应不是合法 JSON，忽略 */ }
       if (result && result.ok) { setHint('已上传：' + (result.path || '') + '，硬刷新页面生效'); refresh() }
       else setHint('上传失败：' + String((result && result.error) || '未知错误'))
     }
@@ -115,6 +141,7 @@ export function OpenConfigCard() {
     xhr.send(file)
   }
 
+  /** 文件选择框 change 回调：取首个文件并触发上传，随后清空选择以便重复选择同一文件。 */
   const onFileChange = (kind: Kind) => (e: any) => {
     const file = e && e.target && e.target.files && e.target.files[0]
     if (file) upload(kind, file)

@@ -1,4 +1,4 @@
-/* Plugin settings card, styled to match the shared PluginCard chrome. */
+/* 插件设置卡片的样式，匹配共享的 PluginCard 外壳风格。 */
 .card {
   list-style: none;
   border: 1px solid var(--dsw-alias-border-l2);

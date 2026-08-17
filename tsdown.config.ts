@@ -5,4 +5,4 @@
  */
 import { clientBundle } from './build/tsdown.client.ts'
 
-export default clientBundle('dsh-theme-synthwave', ['src/index.ts'])
+export default clientBundle('dsh-theme-synthwave', ['src/host/index.ts'])
